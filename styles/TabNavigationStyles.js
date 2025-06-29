@@ -34,8 +34,8 @@ export const tabStyles = StyleSheet.create({
         overflow: 'hidden',
     },
     posterImage: {
-        width: '100%',
-        height: '100%',
+        width: 350,
+        height: 500,
     },
     posterPlaceholder: {
         fontSize: 16,

@@ -58,7 +58,6 @@ const HomeTab = ({ navigation }) => {
     const handleAddPress = () => {
         console.log('Filme adicionado aos favoritos:', currentMovie?.titulo);
         // Future: Adicionar aos favoritos no Firebase
-        getNextMovie(); // Vai para o próximo filme
     };
 
     const handleDidntWatchPress = () => {
@@ -116,7 +115,7 @@ const HomeTab = ({ navigation }) => {
                             style={tabStyles.watchedButton}
                             onPress={handleWatchedPress}
                         >
-                            <Ionicons name="eye" size={24} color="#fff" />
+                            <Ionicons name="eye" size={32} color="#fff" />
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -130,7 +129,7 @@ const HomeTab = ({ navigation }) => {
                             style={tabStyles.didntWatchButton}
                             onPress={handleDidntWatchPress}
                         >
-                            <Ionicons name="close" size={24} color="#fff" />
+                            <Ionicons name="close" size={32} color="#fff" />
                         </TouchableOpacity>
                     </View>
                 </View>
