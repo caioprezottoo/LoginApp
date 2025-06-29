@@ -1,5 +1,7 @@
-// styles/TabNavigationStyles.js
-import { StyleSheet } from 'react-native';
+// styles/TabNavigationStyles.js (Updated with Watched Movies Styles)
+import { StyleSheet, Dimensions } from 'react-native';
+
+const { width } = Dimensions.get('window');
 
 export const tabStyles = StyleSheet.create({
     container: {
@@ -11,7 +13,7 @@ export const tabStyles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingBottom: 120, 
+        paddingBottom: 120,
     },
     movieCard: {
         width: '90%',
@@ -27,7 +29,7 @@ export const tabStyles = StyleSheet.create({
     moviePoster: {
         width: '100%',
         height: 500,
-        backgroundColor: '#3a3a3a', 
+        backgroundColor: '#3a3a3a',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 15,
@@ -157,5 +159,104 @@ export const tabStyles = StyleSheet.create({
         fontSize: 14,
         color: '#fff',
         textAlign: 'center',
+    },
+
+    watchedScrollView: {
+        flex: 1,
+        width: '100%',
+    },
+    watchedScrollContent: {
+        paddingHorizontal: 10,
+        paddingBottom: 20,
+    },
+    watchedList: {
+        width: '100%',
+        paddingHorizontal: 10,
+    },
+    watchedItem: {
+        flexDirection: 'row',
+        backgroundColor: '#2a2a2a',
+        borderRadius: 15,
+        padding: 15,
+        marginBottom: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+    },
+    watchedPoster: {
+        width: 80,
+        height: 120,
+        borderRadius: 10,
+        overflow: 'hidden',
+        backgroundColor: '#3a3a3a',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    watchedPosterImage: {
+        width: '100%',
+        height: '100%',
+    },
+    watchedPosterPlaceholder: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#3a3a3a',
+    },
+    posterPlaceholderText: {
+        fontSize: 12,
+        color: '#888',
+        textAlign: 'center',
+    },
+    watchedInfo: {
+        flex: 1,
+        marginLeft: 15,
+        justifyContent: 'space-between',
+    },
+    watchedHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 10,
+    },
+    watchedTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#fff',
+        lineHeight: 22,
+        flex: 1,
+        marginRight: 10,
+    },
+    deleteButton: {
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    watchedRating: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    ratingText: {
+        color: '#ccc',
+        fontSize: 14,
+        marginLeft: 8,
+    },
+    favoriteButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#333',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+    },
+    favoriteText: {
+        fontSize: 14,
+        marginLeft: 6,
+        fontWeight: '500',
     },
 });
