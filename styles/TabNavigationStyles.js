@@ -1,4 +1,4 @@
-// styles/TabNavigationStyles.js (Updated with Watched Movies Styles)
+// styles/TabNavigationStyles.js (Updated with Favorites Styles)
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -70,17 +70,21 @@ export const tabStyles = StyleSheet.create({
         borderRadius: 25,
     },
     addButton: {
-        backgroundColor: '#333',
+        backgroundColor: '#E53E3E',
         width: 50,
         height: 50,
         borderRadius: 25,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
-        borderColor: '#555',
+        borderColor: '#E53E3E',
+    },
+    addButtonFavorited: {
+        backgroundColor: '#E53E3E',
+        borderColor: '#E53E3E',
     },
     didntWatchButton: {
-        backgroundColor: '#E53E3E',
+        backgroundColor: '#666',
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 12,
@@ -258,5 +262,79 @@ export const tabStyles = StyleSheet.create({
         fontSize: 14,
         marginLeft: 6,
         fontWeight: '500',
+    },
+    favoriteIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#333',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+    },
+    favoriteIndicatorText: {
+        fontSize: 14,
+        marginLeft: 6,
+        fontWeight: '500',
+        color: '#E53E3E',
+    },
+
+    // Favorites Grid Styles
+    favoritesScrollView: {
+        flex: 1,
+        width: '100%',
+    },
+    favoritesScrollContent: {
+        paddingHorizontal: 10,
+        paddingBottom: 20,
+    },
+    favoritesGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        width: '100%',
+    },
+    favoriteItem: {
+        width: '48%',
+        marginBottom: 15,
+    },
+    favoritePoster: {
+        width: '100%',
+        height: 220,
+        borderRadius: 12,
+        overflow: 'hidden',
+        backgroundColor: '#3a3a3a',
+        position: 'relative',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+    },
+    favoritePosterImage: {
+        width: '100%',
+        height: '100%',
+    },
+    favoritePosterPlaceholder: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#3a3a3a',
+    },
+    favoritePlaceholderText: {
+        fontSize: 12,
+        color: '#888',
+        textAlign: 'center',
+    },
+    favoriteDeleteButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

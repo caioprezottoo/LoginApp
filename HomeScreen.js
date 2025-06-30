@@ -9,16 +9,18 @@ const HomeTab = ({ navigation }) => {
     const [currentMovie, setCurrentMovie] = useState(null);
     const [movies, setMovies] = useState([]);
     const [reviewedMovieIds, setReviewedMovieIds] = useState(new Set());
+    const [favoriteMovieIds, setFavoriteMovieIds] = useState(new Set());
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showRatingModal, setShowRatingModal] = useState(false);
 
     useEffect(() => {
-        const fetchMoviesAndReviews = async () => {
+        const fetchMoviesAndData = async () => {
             try {
                 const userId = auth.currentUser?.uid;
                 if (!userId) return;
 
+                // Fetch reviewed movies
                 const reviewsCollection = await firestore
                     .collection('avaliacao')
                     .where('usuario.id', '==', userId)
@@ -33,6 +35,22 @@ const HomeTab = ({ navigation }) => {
                 });
                 setReviewedMovieIds(reviewedIds);
 
+                // Fetch favorite movies
+                const favoritesCollection = await firestore
+                    .collection('favoritos')
+                    .where('usuario.id', '==', userId)
+                    .get();
+
+                const favoriteIds = new Set();
+                favoritesCollection.forEach(doc => {
+                    const data = doc.data();
+                    if (data.movieId) {
+                        favoriteIds.add(data.movieId);
+                    }
+                });
+                setFavoriteMovieIds(favoriteIds);
+
+                // Fetch all movies and filter out only reviewed ones
                 const moviesCollection = await firestore.collection('filmes').get();
                 const moviesData = [];
 
@@ -52,13 +70,13 @@ const HomeTab = ({ navigation }) => {
                 }
                 setLoading(false);
             } catch (error) {
-                console.error('Erro ao buscar filmes:', error);
-                Alert.alert('Erro', 'Não foi possível carregar os filmes');
+                console.error('Erro ao buscar dados:', error);
+                Alert.alert('Erro', 'Não foi possível carregar os dados');
                 setLoading(false);
             }
         };
 
-        fetchMoviesAndReviews();
+        fetchMoviesAndData();
     }, []);
 
     const getNextMovie = () => {
@@ -115,7 +133,36 @@ const HomeTab = ({ navigation }) => {
         }
     };
 
-    const handleAddPress = () => {
+    const handleAddPress = async () => {
+        try {
+            const userId = auth.currentUser?.uid;
+            const userEmail = auth.currentUser?.email;
+            if (!userId || !currentMovie) return;
+
+            const favoritoData = {
+                capa: currentMovie.capa || '',
+                titulo: currentMovie.titulo || '',
+                usuario: {
+                    id: userId,
+                    email: userEmail
+                },
+                quando: new Date(),
+                movieId: currentMovie.id
+            };
+
+            await firestore.collection('favoritos').add(favoritoData);
+
+            console.log('Filme adicionado aos favoritos:', currentMovie?.titulo);
+            Alert.alert('Sucesso', 'Filme adicionado aos favoritos!');
+
+            setFavoriteMovieIds(prev => new Set([...prev, currentMovie.id]));
+
+            // Don't remove the movie from the home screen when favorited
+            // Only show success message
+        } catch (error) {
+            console.error('Erro ao adicionar aos favoritos:', error);
+            Alert.alert('Erro', 'Não foi possível adicionar aos favoritos');
+        }
     };
 
     const handleDidntWatchPress = () => {
@@ -177,10 +224,17 @@ const HomeTab = ({ navigation }) => {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={tabStyles.addButton}
+                            style={[
+                                tabStyles.addButton,
+                                favoriteMovieIds.has(currentMovie.id) && tabStyles.addButtonFavorited
+                            ]}
                             onPress={handleAddPress}
                         >
-                            <Ionicons name="add" size={24} color="#fff" />
+                            <Ionicons
+                                name={favoriteMovieIds.has(currentMovie.id) ? "heart" : "heart-outline"}
+                                size={24}
+                                color="#fff"
+                            />
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -204,13 +258,133 @@ const HomeTab = ({ navigation }) => {
 };
 
 const FavoritesTab = () => {
+    const [favoriteMovies, setFavoriteMovies] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchFavoriteMovies = async () => {
+            try {
+                const userId = auth.currentUser?.uid;
+                if (!userId) return;
+
+                const favoritosCollection = await firestore
+                    .collection('favoritos')
+                    .where('usuario.id', '==', userId)
+                    .get();
+
+                const favoritesData = [];
+                favoritosCollection.forEach(doc => {
+                    favoritesData.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+
+                // Sort by date added (most recent first)
+                favoritesData.sort((a, b) => {
+                    const dateA = a.quando?.toDate ? a.quando.toDate() : new Date(a.quando);
+                    const dateB = b.quando?.toDate ? b.quando.toDate() : new Date(b.quando);
+                    return dateB - dateA;
+                });
+
+                setFavoriteMovies(favoritesData);
+                setLoading(false);
+            } catch (error) {
+                console.error('Erro ao buscar favoritos:', error);
+                setLoading(false);
+            }
+        };
+
+        fetchFavoriteMovies();
+    }, []);
+
+    const removeFavorite = async (favoriteId) => {
+        Alert.alert(
+            'Remover dos Favoritos',
+            'Tem certeza que deseja remover este filme dos favoritos?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Remover',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await firestore.collection('favoritos').doc(favoriteId).delete();
+
+                            setFavoriteMovies(prevMovies =>
+                                prevMovies.filter(movie => movie.id !== favoriteId)
+                            );
+
+                            Alert.alert('Sucesso', 'Filme removido dos favoritos!');
+                        } catch (error) {
+                            console.error('Erro ao remover favorito:', error);
+                            Alert.alert('Erro', 'Não foi possível remover dos favoritos');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    if (loading) {
+        return (
+            <View style={tabStyles.content}>
+                <ActivityIndicator size="large" color="#4A90E2" />
+                <Text style={[tabStyles.screenContent, { marginTop: 20 }]}>
+                    Carregando favoritos...
+                </Text>
+            </View>
+        );
+    }
+
+    if (favoriteMovies.length === 0) {
+        return (
+            <View style={tabStyles.content}>
+                <Text style={tabStyles.screenTitle}>Favoritos</Text>
+                <Text style={tabStyles.screenContent}>
+                    Nenhum filme favorito ainda.{'\n'}
+                    Adicione filmes aos favoritos na tela inicial!
+                </Text>
+            </View>
+        );
+    }
+
     return (
-        <View style={tabStyles.content}>
-            <Text style={tabStyles.screenTitle}>Favorites</Text>
-            <Text style={tabStyles.screenContent}>
-                Your favorite movies will appear here.{'\n'}
-                Start adding movies to see them in your favorites list!
-            </Text>
+        <View style={[tabStyles.content, { paddingTop: 60, alignItems: 'flex-start' }]}>
+            <Text style={[tabStyles.screenTitle, { alignSelf: 'center', marginBottom: 30 }]}>Favoritos</Text>
+
+            <ScrollView
+                style={tabStyles.favoritesScrollView}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={tabStyles.favoritesScrollContent}
+            >
+                <View style={tabStyles.favoritesGrid}>
+                    {favoriteMovies.map((movie) => (
+                        <View key={movie.id} style={tabStyles.favoriteItem}>
+                            <View style={tabStyles.favoritePoster}>
+                                {movie.capa ? (
+                                    <Image
+                                        source={{ uri: movie.capa }}
+                                        style={tabStyles.favoritePosterImage}
+                                        resizeMode="cover"
+                                    />
+                                ) : (
+                                    <View style={tabStyles.favoritePosterPlaceholder}>
+                                        <Text style={tabStyles.favoritePlaceholderText}>No Image</Text>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity
+                                    style={tabStyles.favoriteDeleteButton}
+                                    onPress={() => removeFavorite(movie.id)}
+                                >
+                                    <Ionicons name="close" size={16} color="#ffffff" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            </ScrollView>
         </View>
     );
 };
@@ -294,22 +468,41 @@ const WatchedTab = () => {
             ]
         );
     };
-    const toggleFavorite = async (movieId, currentFavoriteStatus) => {
-        try {
-            await firestore.collection('avaliacao').doc(movieId).update({
-                isFavorite: !currentFavoriteStatus
-            });
 
-            setWatchedMovies(prevMovies =>
-                prevMovies.map(movie =>
-                    movie.id === movieId
-                        ? { ...movie, isFavorite: !currentFavoriteStatus }
-                        : movie
-                )
-            );
+    const addToFavorites = async (movie) => {
+        try {
+            const userId = auth.currentUser?.uid;
+            const userEmail = auth.currentUser?.email;
+            if (!userId) return;
+
+            // Check if already in favorites
+            const existingFavorite = await firestore
+                .collection('favoritos')
+                .where('usuario.id', '==', userId)
+                .where('movieId', '==', movie.movieId)
+                .get();
+
+            if (!existingFavorite.empty) {
+                Alert.alert('Aviso', 'Este filme já está nos seus favoritos!');
+                return;
+            }
+
+            const favoritoData = {
+                capa: movie.capa || '',
+                titulo: movie.titulo || '',
+                usuario: {
+                    id: userId,
+                    email: userEmail
+                },
+                quando: new Date(),
+                movieId: movie.movieId
+            };
+
+            await firestore.collection('favoritos').add(favoritoData);
+            Alert.alert('Sucesso', 'Filme adicionado aos favoritos!');
         } catch (error) {
-            console.error('Erro ao atualizar favorito:', error);
-            Alert.alert('Erro', 'Não foi possível atualizar o favorito');
+            console.error('Erro ao adicionar aos favoritos:', error);
+            Alert.alert('Erro', 'Não foi possível adicionar aos favoritos');
         }
     };
 
@@ -385,25 +578,15 @@ const WatchedTab = () => {
 
                             <View style={tabStyles.watchedRating}>
                                 {renderStars(movie.rating)}
-                                <Text style={tabStyles.ratingText}>
-                                    ({movie.rating}/5)
-                                </Text>
                             </View>
 
                             <TouchableOpacity
                                 style={tabStyles.favoriteButton}
-                                onPress={() => toggleFavorite(movie.id, movie.isFavorite)}
+                                onPress={() => addToFavorites(movie)}
                             >
-                                <Ionicons
-                                    name={movie.isFavorite ? 'heart' : 'heart-outline'}
-                                    size={20}
-                                    color={movie.isFavorite ? '#E53E3E' : '#666'}
-                                />
-                                <Text style={[
-                                    tabStyles.favoriteText,
-                                    { color: movie.isFavorite ? '#E53E3E' : '#666' }
-                                ]}>
-                                    {movie.isFavorite ? 'Favorited' : 'Add to Favorites'}
+                                <Ionicons name="heart-outline" size={20} color="#E53E3E" />
+                                <Text style={[tabStyles.favoriteText, { color: '#E53E3E' }]}>
+                                    Adicionar aos Favoritos
                                 </Text>
                             </TouchableOpacity>
                         </View>
