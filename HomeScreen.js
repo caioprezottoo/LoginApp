@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, Alert, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, SafeAreaView, Alert, Image, ActivityIndicator, ScrollView, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from './firebase';
+import firebase from './firebase';
 import { tabStyles } from './styles/TabNavigationStyles';
 import RatingModal from './components/RatingModal';
 
@@ -50,23 +51,46 @@ const HomeTab = ({ navigation }) => {
                 });
                 setFavoriteMovieIds(favoriteIds);
 
-                // Fetch all movies and filter out only reviewed ones
-                const moviesCollection = await firestore.collection('filmes').get();
+                // Fetch movies from both collections
                 const moviesData = [];
 
+                // Fetch from original 'filmes' collection
+                const moviesCollection = await firestore.collection('filmes').get();
                 moviesCollection.forEach(doc => {
                     const movieData = {
                         id: doc.id,
-                        ...doc.data()
+                        ...doc.data(),
+                        source: 'filmes' // Add source identifier
                     };
                     if (!reviewedIds.has(doc.id)) {
                         moviesData.push(movieData);
                     }
                 });
 
-                setMovies(moviesData);
-                if (moviesData.length > 0) {
-                    setCurrentMovie(moviesData[0]);
+                // Fetch from user's 'filmesUsuario' collection (only current user's movies)
+                const userMoviesCollection = await firestore
+                    .collection('filmesUsuario')
+                    .where('adicionadoPor.id', '==', userId)
+                    .where('ativo', '==', true)
+                    .get();
+
+                userMoviesCollection.forEach(doc => {
+                    const movieData = {
+                        id: doc.id,
+                        ...doc.data(),
+                        source: 'filmesUsuario' // Add source identifier
+                    };
+                    if (!reviewedIds.has(doc.id)) {
+                        moviesData.push(movieData);
+                    }
+                });
+
+                // Shuffle the movies array to mix both collections
+                const shuffledMovies = moviesData.sort(() => Math.random() - 0.5);
+
+                setMovies(shuffledMovies);
+                if (shuffledMovies.length > 0) {
+                    setCurrentMovie(shuffledMovies[0]);
                 }
                 setLoading(false);
             } catch (error) {
@@ -107,6 +131,7 @@ const HomeTab = ({ navigation }) => {
                 quando: new Date(),
                 rating: rating,
                 movieId: currentMovie.id,
+                source: currentMovie.source, // Store the source collection
                 isFavorite: false
             };
 
@@ -147,7 +172,8 @@ const HomeTab = ({ navigation }) => {
                     email: userEmail
                 },
                 quando: new Date(),
-                movieId: currentMovie.id
+                movieId: currentMovie.id,
+                source: currentMovie.source // Store the source collection
             };
 
             await firestore.collection('favoritos').add(favoritoData);
@@ -186,8 +212,8 @@ const HomeTab = ({ navigation }) => {
                 <Text style={tabStyles.screenTitle}>Todos os filmes avaliados!</Text>
                 <Text style={tabStyles.screenContent}>
                     Você já avaliou todos os filmes disponíveis.{'\n'}
-                    Adicione mais filmes à coleção "filmes" no Firestore{'\n'}
-                    ou veja suas avaliações na aba "Watched".
+                    Adicione mais filmes na aba "Adicionar Filme"{'\n'}
+                    ou veja suas avaliações na aba "Assistidos".
                 </Text>
             </View>
         );
@@ -214,6 +240,13 @@ const HomeTab = ({ navigation }) => {
                     <Text style={tabStyles.movieTitle}>
                         {currentMovie.titulo || 'Título não disponível'}
                     </Text>
+
+                    {/* Show movie source indicator */}
+                    {currentMovie.source === 'filmesUsuario' && (
+                        <Text style={tabStyles.movieSource}>
+                            📱 Adicionado por você
+                        </Text>
+                    )}
 
                     <View style={tabStyles.actionButtons}>
                         <TouchableOpacity
@@ -390,19 +423,165 @@ const FavoritesTab = () => {
 };
 
 const AddMovieTab = () => {
+    const [movieTitle, setMovieTitle] = useState('');
+    const [moviePoster, setMoviePoster] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const clearForm = () => {
+        setMovieTitle('');
+        setMoviePoster('');
+    };
+
+    const validateForm = () => {
+        if (!movieTitle.trim()) {
+            Alert.alert('Erro', 'Por favor, digite o título do filme.');
+            return false;
+        }
+
+        if (!moviePoster.trim()) {
+            Alert.alert('Erro', 'Por favor, adicione a URL da capa do filme.');
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleAddMovie = async () => {
+        if (!validateForm()) return;
+
+        setIsLoading(true);
+        try {
+            const userId = auth.currentUser?.uid;
+            const userEmail = auth.currentUser?.email;
+
+            if (!userId) {
+                Alert.alert('Erro', 'Usuário não encontrado.');
+                return;
+            }
+
+            const movieData = {
+                titulo: movieTitle.trim(),
+                capa: moviePoster.trim(),
+                adicionadoPor: {
+                    id: userId,
+                    email: userEmail
+                },
+                dataAdicao: new Date(),
+                ativo: true
+            };
+
+            await firestore.collection('filmesUsuario').add(movieData);
+
+            Alert.alert(
+                'Sucesso!',
+                `O filme "${movieTitle}" foi adicionado com sucesso!`,
+                [{ text: 'OK', onPress: clearForm }]
+            );
+
+        } catch (error) {
+            console.error('Erro ao adicionar filme:', error);
+            Alert.alert('Erro', 'Não foi possível adicionar o filme. Tente novamente.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
-        <View style={tabStyles.content}>
-            <Text style={tabStyles.screenTitle}>Add Movie</Text>
-            <Text style={tabStyles.screenContent}>
-                Add new movies to your collection.{'\n'}
-                Search and save movies you want to track.
+        <View style={[tabStyles.content, { paddingTop: 60, alignItems: 'flex-start' }]}>
+            <Text style={[tabStyles.screenTitle, { alignSelf: 'center', marginBottom: 30 }]}>
+                Adicionar Filme
             </Text>
+
+            <ScrollView
+                style={tabStyles.addMovieScrollView}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={tabStyles.addMovieScrollContent}
+            >
+                <View style={tabStyles.formContainer}>
+                    {/* Movie Title */}
+                    <View style={tabStyles.inputGroup}>
+                        <Text style={tabStyles.inputLabel}>Título do Filme *</Text>
+                        <TextInput
+                            style={tabStyles.textInput}
+                            value={movieTitle}
+                            onChangeText={setMovieTitle}
+                            placeholder="Digite o título do filme"
+                            placeholderTextColor="#888"
+                            maxLength={100}
+                        />
+                    </View>
+
+                    {/* Movie Poster URL */}
+                    <View style={tabStyles.inputGroup}>
+                        <Text style={tabStyles.inputLabel}>URL da Capa *</Text>
+                        <TextInput
+                            style={tabStyles.textInput}
+                            value={moviePoster}
+                            onChangeText={setMoviePoster}
+                            placeholder="https://exemplo.com/poster.jpg"
+                            placeholderTextColor="#888"
+                            keyboardType="url"
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    {/* Preview Section */}
+                    {movieTitle.trim() && moviePoster.trim() && (
+                        <View style={tabStyles.previewSection}>
+                            <Text style={tabStyles.previewTitle}>Pré-visualização:</Text>
+                            <View style={tabStyles.previewCard}>
+                                <View style={tabStyles.previewPoster}>
+                                    <Image
+                                        source={{ uri: moviePoster }}
+                                        style={tabStyles.previewPosterImage}
+                                        resizeMode="cover"
+                                        onError={() => { }}
+                                    />
+                                </View>
+                                <View style={tabStyles.previewInfo}>
+                                    <Text style={tabStyles.previewMovieTitle}>{movieTitle}</Text>
+                                </View>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Action Buttons */}
+                    <View style={tabStyles.actionButtonsContainer}>
+                        <TouchableOpacity
+                            style={tabStyles.clearButton}
+                            onPress={clearForm}
+                            disabled={isLoading}
+                        >
+                            <Text style={tabStyles.clearButtonText}>Limpar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                tabStyles.addMovieButton,
+                                (!movieTitle.trim() || !moviePoster.trim() || isLoading) && tabStyles.addMovieButtonDisabled
+                            ]}
+                            onPress={handleAddMovie}
+                            disabled={!movieTitle.trim() || !moviePoster.trim() || isLoading}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <>
+                                    <Ionicons name="add" size={20} color="#fff" />
+                                    <Text style={tabStyles.addMovieButtonText}>Adicionar Filme</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </ScrollView>
         </View>
     );
 };
 
 const WatchedTab = () => {
     const [watchedMovies, setWatchedMovies] = useState([]);
+    const [favoriteMovieIds, setFavoriteMovieIds] = useState(new Set());
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -411,6 +590,7 @@ const WatchedTab = () => {
                 const userId = auth.currentUser?.uid;
                 if (!userId) return;
 
+                // Fetch watched movies
                 const avaliacaoCollection = await firestore
                     .collection('avaliacao')
                     .where('usuario.id', '==', userId)
@@ -431,6 +611,22 @@ const WatchedTab = () => {
                 });
 
                 setWatchedMovies(watchedData);
+
+                // Fetch favorite movies to check which ones are already favorited
+                const favoritesCollection = await firestore
+                    .collection('favoritos')
+                    .where('usuario.id', '==', userId)
+                    .get();
+
+                const favoriteIds = new Set();
+                favoritesCollection.forEach(doc => {
+                    const data = doc.data();
+                    if (data.movieId) {
+                        favoriteIds.add(data.movieId);
+                    }
+                });
+                setFavoriteMovieIds(favoriteIds);
+
                 setLoading(false);
             } catch (error) {
                 console.error('Erro ao buscar avaliações:', error);
@@ -499,6 +695,10 @@ const WatchedTab = () => {
             };
 
             await firestore.collection('favoritos').add(favoritoData);
+
+            // Update the local state to reflect the change
+            setFavoriteMovieIds(prev => new Set([...prev, movie.movieId]));
+
             Alert.alert('Sucesso', 'Filme adicionado aos favoritos!');
         } catch (error) {
             console.error('Erro ao adicionar aos favoritos:', error);
@@ -549,78 +749,174 @@ const WatchedTab = () => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={tabStyles.watchedScrollContent}
             >
-                {watchedMovies.map((movie) => (
-                    <View key={movie.id} style={tabStyles.watchedItem}>
-                        <View style={tabStyles.watchedPoster}>
-                            {movie.capa ? (
-                                <Image
-                                    source={{ uri: movie.capa }}
-                                    style={tabStyles.watchedPosterImage}
-                                    resizeMode="cover"
-                                />
-                            ) : (
-                                <View style={tabStyles.watchedPosterPlaceholder}>
-                                    <Text style={tabStyles.posterPlaceholderText}>No Image</Text>
+                {watchedMovies.map((movie) => {
+                    const isInFavorites = favoriteMovieIds.has(movie.movieId);
+
+                    return (
+                        <View key={movie.id} style={tabStyles.watchedItem}>
+                            <View style={tabStyles.watchedPoster}>
+                                {movie.capa ? (
+                                    <Image
+                                        source={{ uri: movie.capa }}
+                                        style={tabStyles.watchedPosterImage}
+                                        resizeMode="cover"
+                                    />
+                                ) : (
+                                    <View style={tabStyles.watchedPosterPlaceholder}>
+                                        <Text style={tabStyles.posterPlaceholderText}>No Image</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            <View style={tabStyles.watchedInfo}>
+                                <View style={tabStyles.watchedHeader}>
+                                    <Text style={tabStyles.watchedTitle}>{movie.titulo}</Text>
+                                    <TouchableOpacity
+                                        style={tabStyles.deleteButton}
+                                        onPress={() => deleteReview(movie.id, movie.movieId)}
+                                    >
+                                        <Ionicons name="close" size={18} color="#ffffff" />
+                                    </TouchableOpacity>
                                 </View>
-                            )}
-                        </View>
 
-                        <View style={tabStyles.watchedInfo}>
-                            <View style={tabStyles.watchedHeader}>
-                                <Text style={tabStyles.watchedTitle}>{movie.titulo}</Text>
-                                <TouchableOpacity
-                                    style={tabStyles.deleteButton}
-                                    onPress={() => deleteReview(movie.id, movie.movieId)}
-                                >
-                                    <Ionicons name="close" size={18} color="#ffffff" />
-                                </TouchableOpacity>
+                                <View style={tabStyles.watchedRating}>
+                                    {renderStars(movie.rating)}
+                                </View>
+
+                                {isInFavorites ? (
+                                    <View style={tabStyles.favoriteIndicator}>
+                                        <Ionicons name="heart" size={20} color="#E53E3E" />
+                                        <Text style={tabStyles.favoriteIndicatorText}>
+                                            Nos Favoritos
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={tabStyles.favoriteButton}
+                                        onPress={() => addToFavorites(movie)}
+                                    >
+                                        <Ionicons name="heart-outline" size={20} color="#E53E3E" />
+                                        <Text style={[tabStyles.favoriteText, { color: '#E53E3E' }]}>
+                                            Adicionar aos Favoritos
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
-
-                            <View style={tabStyles.watchedRating}>
-                                {renderStars(movie.rating)}
-                            </View>
-
-                            <TouchableOpacity
-                                style={tabStyles.favoriteButton}
-                                onPress={() => addToFavorites(movie)}
-                            >
-                                <Ionicons name="heart-outline" size={20} color="#E53E3E" />
-                                <Text style={[tabStyles.favoriteText, { color: '#E53E3E' }]}>
-                                    Adicionar aos Favoritos
-                                </Text>
-                            </TouchableOpacity>
                         </View>
-                    </View>
-                ))}
+                    );
+                })}
             </ScrollView>
         </View>
     );
 };
 
 const ProfileTab = ({ navigation }) => {
+    const [showReauthModal, setShowReauthModal] = useState(false);
+    const [password, setPassword] = useState('');
+
     const handleLogout = async () => {
         try {
             await auth.signOut();
             navigation.navigate('Login');
         } catch (error) {
-            Alert.alert('Error', error.message);
+            Alert.alert('Erro', error.message);
         }
     };
 
     const confirmLogout = () => {
         Alert.alert(
             'Logout',
-            'Are you sure you want to logout?',
+            'Tem certeza que deseja sair?',
             [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Logout', onPress: handleLogout },
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Sair', onPress: handleLogout },
+            ]
+        );
+    };
+
+    const reauthenticateUser = async (password) => {
+        try {
+            const user = auth.currentUser;
+            const credential = firebase.auth.EmailAuthProvider.credential(
+                user.email,
+                password
+            );
+            await user.reauthenticateWithCredential(credential);
+            return true;
+        } catch (error) {
+            console.error('Erro na reautenticação:', error);
+            Alert.alert('Erro', 'Senha incorreta. Tente novamente.');
+            return false;
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        try {
+            const userId = auth.currentUser?.uid;
+            if (!userId) return;
+
+            // Delete user's reviews
+            const reviewsSnapshot = await firestore
+                .collection('avaliacao')
+                .where('usuario.id', '==', userId)
+                .get();
+
+            const reviewDeletePromises = reviewsSnapshot.docs.map(doc => doc.ref.delete());
+
+            // Delete user's favorites
+            const favoritesSnapshot = await firestore
+                .collection('favoritos')
+                .where('usuario.id', '==', userId)
+                .get();
+
+            const favoritesDeletePromises = favoritesSnapshot.docs.map(doc => doc.ref.delete());
+
+            // Wait for all deletions to complete
+            await Promise.all([...reviewDeletePromises, ...favoritesDeletePromises]);
+
+            // Delete the user account
+            await auth.currentUser.delete();
+
+            Alert.alert('Sucesso', 'Conta deletada com sucesso!');
+            navigation.navigate('Login');
+        } catch (error) {
+            console.error('Erro ao deletar conta:', error);
+            Alert.alert('Erro', 'Não foi possível deletar a conta: ' + error.message);
+        }
+    };
+
+    const handleReauthAndDelete = async () => {
+        if (!password.trim()) {
+            Alert.alert('Erro', 'Por favor, digite sua senha.');
+            return;
+        }
+
+        const reauthSuccess = await reauthenticateUser(password);
+        if (reauthSuccess) {
+            setShowReauthModal(false);
+            setPassword('');
+            await handleDeleteAccount();
+        }
+    };
+
+    const confirmDeleteAccount = () => {
+        Alert.alert(
+            'Deletar Conta',
+            'ATENÇÃO: Esta ação é irreversível!\n\nTodos os seus dados serão permanentemente removidos:\n• Suas avaliações de filmes\n• Sua lista de favoritos\n• Sua conta de usuário\n\nTem certeza que deseja continuar?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Deletar Conta',
+                    style: 'destructive',
+                    onPress: () => setShowReauthModal(true)
+                },
             ]
         );
     };
 
     return (
         <View style={tabStyles.content}>
-            <Text style={tabStyles.screenTitle}>Profile</Text>
+            <Text style={tabStyles.screenTitle}>Perfil</Text>
 
             <View style={tabStyles.userInfo}>
                 <Text style={tabStyles.userEmail}>
@@ -629,12 +925,64 @@ const ProfileTab = ({ navigation }) => {
             </View>
 
             <Text style={tabStyles.screenContent}>
-                Manage your account settings and preferences.
+                Gerencie as configurações da sua conta e preferências.
             </Text>
 
             <TouchableOpacity style={tabStyles.logoutButton} onPress={confirmLogout}>
-                <Text style={tabStyles.logoutButtonText}>Logout</Text>
+                <Text style={tabStyles.logoutButtonText}>Sair</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={tabStyles.deleteAccountButton} onPress={confirmDeleteAccount}>
+                <Text style={tabStyles.deleteAccountButtonText}>Deletar Conta</Text>
+            </TouchableOpacity>
+
+            {/* Re-authentication Modal */}
+            <Modal
+                visible={showReauthModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => {
+                    setShowReauthModal(false);
+                    setPassword('');
+                }}
+            >
+                <View style={tabStyles.modalOverlay}>
+                    <View style={tabStyles.modalContainer}>
+                        <Text style={tabStyles.modalTitle}>Confirmação de Segurança</Text>
+                        <Text style={tabStyles.modalSubtitle}>
+                            Digite sua senha para confirmar a exclusão da conta:
+                        </Text>
+
+                        <TextInput
+                            style={tabStyles.modalInput}
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholder="Sua senha"
+                            secureTextEntry
+                            autoFocus
+                        />
+
+                        <View style={tabStyles.modalButtons}>
+                            <TouchableOpacity
+                                style={tabStyles.modalCancelButton}
+                                onPress={() => {
+                                    setShowReauthModal(false);
+                                    setPassword('');
+                                }}
+                            >
+                                <Text style={tabStyles.modalCancelText}>Cancelar</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={tabStyles.modalDeleteButton}
+                                onPress={handleReauthAndDelete}
+                            >
+                                <Text style={tabStyles.modalDeleteText}>Deletar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
