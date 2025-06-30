@@ -1,8 +1,8 @@
-# 🎬 Click App React Native
+# Click App React Native
 
 A React Native mobile application for tracking and rating movies, allowing users to discover new films, rate watched movies, and maintain a favorites list.
 
-## 📱 Features
+## Features
 
 - **Home Screen**: Swipe through movies from global collection and user-added films
 - **Rating System**: 1-5 star rating for watched movies
@@ -11,7 +11,7 @@ A React Native mobile application for tracking and rating movies, allowing users
 - **Watched List**: View all rated movies with favorite toggle
 - **User Profile**: Account management with secure account deletion
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **React Native** + **Expo**
 - **Firebase Authentication** + **Firestore**
